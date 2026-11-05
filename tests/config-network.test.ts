@@ -59,6 +59,15 @@ describe('gateway configuration', () => {
     expect(() => parseGatewayConfig({ ...base, upstreamTimeoutMs: 0 })).toThrow(/upstreamTimeoutMs/u)
   })
 
+  it('keeps pairing QR windows valid for fifteen minutes by default and configurable up to thirty', () => {
+    const base = { stateFile, controlFile, initiallyEnabled: false, tls: { mode: 'disabled' as const } }
+    expect(parseGatewayConfig(base).pairingTtlMs).toBe(900_000)
+    expect(parseGatewayConfig({ ...base, pairingTtlMs: 1_800_000 }).pairingTtlMs).toBe(1_800_000)
+    for (const pairingTtlMs of [9_999, 1_800_001, 1.5, '900000']) {
+      expect(() => parseGatewayConfig({ ...base, pairingTtlMs })).toThrow(/pairingTtlMs/u)
+    }
+  })
+
   it('keeps WebSocket compression opt-in and freezes validated paths and budgets', () => {
     const base = { stateFile, controlFile, initiallyEnabled: false, tls: { mode: 'disabled' as const } }
     // The live path is compressed by default; an explicit empty list opts out.

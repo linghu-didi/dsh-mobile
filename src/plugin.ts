@@ -110,13 +110,16 @@ import { isLoopbackAddress, parseAuthority, parseCidr, probeTcpReachable } from 
 import {
   availableLanNetworks,
   isNetworkSelectionError,
+  isVirtualInterfaceName,
   materializeManagedSetup,
   refreshManagedUpstreamOrigin,
   parseAdditionalTrustedNetworks,
   parseManagedSetup,
+  saveManagedSetup,
   saveManagedTrustedNetworks,
   preferredLanInterfaceNames,
   selectLanNetwork,
+  selectManagedLanNetwork,
   type ManagedSetup,
 } from './managed-setup.js'
 import { prepareManagedLanSetup, type ManagedLanSetupResult } from './lan-setup.js'
@@ -900,14 +903,36 @@ export async function apply(ctx: Context, config: PluginConfig): Promise<void> {
   const startRuntime = async (): Promise<MobileAccessRuntime> => {
     if (loaded.kind === 'unconfigured') throw new Error(preparedLanSetup === undefined ? 'lan_setup_required' : 'lan_setup_restart_required')
     if (loaded.kind === 'fixed') return startGateway(loaded.config)
+    // Saved setups can predate the virtual-adapter check (for example a Hyper-V
+    // vEthernet picked once). Route discovery is only needed in that case, and
+    // the refresh poll must not spawn it every two seconds.
+    let managedPreferredInterfaces: Promise<readonly string[]> | undefined
+    const preferredForVirtualSetup = (setup: ManagedSetup): Promise<readonly string[]> =>
+      isVirtualInterfaceName(setup.networkInterface)
+        ? (managedPreferredInterfaces ??= preferredLanInterfaceNames())
+        : Promise.resolve([])
     const following = new FollowingMobileAccessRuntime(async () => {
       const setup = managedSetupOverride ?? loaded.setup
-      const network = selectLanNetwork(undefined, setup.networkInterface)
+      const preferredInterfaces = await preferredForVirtualSetup(setup)
+      const network = selectManagedLanNetwork(setup, undefined, preferredInterfaces)
+      if (isVirtualInterfaceName(setup.networkInterface) && network.name !== setup.networkInterface) {
+        // Repair the durable selection so the panel and the next boot agree with
+        // the interface the gateway actually binds.
+        const next = Object.freeze({ ...setup, networkInterface: network.name })
+        try {
+          await saveManagedSetup(loaded.setupFile, next)
+          managedSetupOverride = next
+        } catch (error) {
+          process.emitWarning(`DSH Mobile: could not replace the saved virtual LAN interface: ${error instanceof Error ? error.message : String(error)}`, {
+            code: 'DSH_MOBILE_NETWORK_MIGRATION',
+          })
+        }
+      }
       return {
         key: `${network.name}\0${network.address}\0${network.cidr}`,
         start: async () => startGateway({
           ...loaded.config,
-          ...await materializeManagedSetup(setup),
+          ...await materializeManagedSetup(setup, undefined, preferredInterfaces),
         }),
       }
     }, (error) => {
@@ -1237,7 +1262,11 @@ export async function apply(ctx: Context, config: PluginConfig): Promise<void> {
     let interfaceName: string | undefined
     let networkError: string | undefined
     if (loaded.kind === 'managed') {
-      try { interfaceName = selectLanNetwork(undefined, loaded.setup.networkInterface).name }
+      try {
+        const setup = managedSetupOverride ?? loaded.setup
+        const preferred = isVirtualInterfaceName(setup.networkInterface) ? await preferredLanInterfaceNames() : []
+        interfaceName = selectManagedLanNetwork(setup, undefined, preferred).name
+      }
       catch { networkError = 'network_interface_unavailable' }
     }
     const remote = remoteController().status()

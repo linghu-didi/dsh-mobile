@@ -113,6 +113,15 @@ describe('browser authentication page localization', () => {
     expect(script).toContain('电脑当前不可用，请检查连接后重试。')
     expect(script).toContain("/mobile-access/auth/renew")
   })
+
+  it('renders a hidden WeChat notice so only WeChat shows it', () => {
+    const page = renderPairPage('zh')
+    expect(page).toContain('id="pair-wechat"')
+    expect(page).toContain('微信内置浏览器')
+    expect(page).toContain('id="pair-wechat-copy"')
+    expect(page).toContain('复制配对链接')
+    expect(page).toContain('hidden>')
+  })
 })
 
 describe('browser pairing input and recovery feedback', () => {
@@ -169,6 +178,45 @@ describe('browser pairing input and recovery feedback', () => {
     const expected = { zh: 'Android App 密钥', en: 'Android app key', it: 'chiave per l’app Android' }
     expect(form.status.value).toContain(expected[locale])
     expect(form.requests).toEqual([])
+  })
+
+  it('shows the WeChat notice and copies the pairing link only inside MicroMessenger', async () => {
+    const run = (userAgent: string) => {
+      const notice = { hidden: true }
+      const copyButton = { addEventListener(_type: string, listener: () => void) { click = listener } }
+      const copyStatus = { value: '' }
+      let click: () => void = () => { throw new Error('Copy listener missing') }
+      const copied: string[] = []
+      const token = {
+        value: '', setAttribute() {}, removeAttribute() {}, focus() {}, addEventListener() {},
+      }
+      const elements: Record<string, object> = {
+        'pair-token': token,
+        'device-label': { value: '' },
+        'pair-status': { value: '' },
+        'pair-form': { querySelector: () => ({ disabled: false }), addEventListener() {} },
+        'pair-wechat': notice,
+        'pair-wechat-copy': copyButton,
+        'pair-wechat-status': copyStatus,
+      }
+      runInNewContext(renderPairScript('zh'), {
+        document: { getElementById: (id: string) => elements[id] },
+        URLSearchParams,
+        history: { replaceState() {} },
+        location: { hash: `#token=${'A'.repeat(43)}`, pathname: '/mobile-access/pair', origin: 'https://192.168.0.107:3443', replace() {} },
+        navigator: { userAgent, clipboard: { writeText: async (text: string) => { copied.push(text) } } },
+      })
+      return { notice, copied, copyStatus, click: () => click() }
+    }
+
+    const ordinary = run('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1')
+    expect(ordinary.notice.hidden).toBe(true)
+    const wechat = run('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 MicroMessenger/8.0.50')
+    expect(wechat.notice.hidden).toBe(false)
+    wechat.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(wechat.copied).toEqual([`https://192.168.0.107:3443/mobile-access/pair#token=${'A'.repeat(43)}`])
+    expect(wechat.copyStatus.value).toContain('已复制')
   })
 
   it('does not submit the same one-time pairing request twice while it is pending', async () => {

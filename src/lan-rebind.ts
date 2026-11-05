@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import {
-  parseManagedSetup, readManagedCa, refreshManagedServerCertificate, saveManagedSetup, selectLanNetwork,
+  isVirtualInterfaceName, parseManagedSetup, preferredLanInterfaceNames, readManagedCa,
+  refreshManagedServerCertificate, saveManagedSetup, selectManagedLanNetwork,
   type LanNetwork, type ManagedSetup,
 } from './managed-setup.js'
 import type { MobileAccessGatewayController } from './control.js'
@@ -37,7 +38,8 @@ export async function rebindManagedLan(options: {
     // Restore the saved selection even when the old interface is no longer reachable.
     await saveManagedSetup(options.setupFile, previous)
     options.publish(previous)
-    const network = options.selectPrevious?.(previous) ?? selectLanNetwork(undefined, previous.networkInterface)
+    const preferred = isVirtualInterfaceName(previous.networkInterface) ? await preferredLanInterfaceNames() : []
+    const network = options.selectPrevious?.(previous) ?? selectManagedLanNetwork(previous, undefined, preferred)
     await refreshManagedServerCertificate(previous, network.address)
   })
   return { setup: result.value, running: result.running }

@@ -430,7 +430,9 @@ export function parseGatewayConfig(raw: unknown): ResolvedGatewayConfig {
     tls,
     publicTls: tls.mode === 'provided',
     discovery: true,
-    pairingTtlMs: integer(value.pairingTtlMs, 'pairingTtlMs', 120_000, 10_000, 600_000),
+    // QR codes stay valid long enough to scan and open them from another device;
+    // administrators may still shorten the window down to ten seconds.
+    pairingTtlMs: integer(value.pairingTtlMs, 'pairingTtlMs', 900_000, 10_000, 1_800_000),
     deviceTtlMs,
     sessionTtlMs,
     maxDevices: integer(value.maxDevices, 'maxDevices', 32, 1, 256),
