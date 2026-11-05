@@ -114,7 +114,7 @@ Restart DSH, then search for **dsh-mobile** under **Settings → Plugin Market**
 
 Download the official Android APK using the link above. Then choose LAN or remote access in the [connection guide](#connection-guide); the phone needs no separate tunnel client. For browser access, including iOS, follow the steps below.
 
-Registry-installed plugins check for updates when the desktop UI loads and show “Update plugin” beside the access-panel title when a newer release is available. Restart DSH after installation. The app download entry shows the latest version; local development packages are not overwritten, and Android does not check for or push app-version updates.
+Registry-installed plugins check for updates when the desktop UI loads and show “Update plugin” beside the access-panel title when a newer release is available. **Plugins are not hot-reloaded: quit and reopen DSH normally after installing or updating, or the new version does not take effect.** The app download entry shows the latest version; local development packages are not overwritten, and Android does not check for or push app-version updates.
 
 ### iPhone and iPad: Home Screen web app (PWA)
 
