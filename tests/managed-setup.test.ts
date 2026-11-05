@@ -13,6 +13,7 @@ import {
   saveManagedTrustedNetworks,
   preferredLanInterfaceNames,
   selectLanNetwork,
+  selectManagedLanNetwork,
   type ManagedSetup,
 } from '../src/managed-setup.js'
 import { addressAllowed, parseCidr } from '../src/network.js'
@@ -153,6 +154,31 @@ describe('managed DHCP setup', () => {
       'vEthernet (Default Switch)': [interfaceEntry('172.20.0.1')],
       'Radmin VPN': [interfaceEntry('10.20.30.40')],
     })).toMatchObject({ name: 'Ethernet', address: '192.168.10.8' })
+  })
+
+  it('ignores a saved virtual adapter so the physical LAN is bound', async () => {
+    const table = {
+      'vEthernet (Default Switch)': [interfaceEntry('172.16.20.84', 16)],
+      WLAN: [interfaceEntry('192.168.0.107')],
+    }
+    const setup = { ...await fixture(), networkInterface: 'vEthernet (Default Switch)' }
+
+    expect(selectManagedLanNetwork(setup, table, ['WLAN'])).toMatchObject({ name: 'WLAN', address: '192.168.0.107' })
+    // Without route discovery the only physical candidate still wins.
+    expect(selectManagedLanNetwork(setup, table)).toMatchObject({ name: 'WLAN', address: '192.168.0.107' })
+    // An explicitly requested interface is not overridden: the rebind UI owns that choice.
+    expect(selectLanNetwork(undefined, 'vEthernet (Default Switch)', table))
+      .toMatchObject({ name: 'vEthernet (Default Switch)', address: '172.16.20.84' })
+
+    await ensureManagedCa(setup.tls)
+    const config = await materializeManagedSetup(setup, table, ['WLAN'])
+    expect(config).toMatchObject({
+      publicOrigin: 'https://192.168.0.107:3443',
+      listenHost: '192.168.0.107',
+      allowedCidrs: ['192.168.0.0/24'],
+    })
+    const leaf = new X509Certificate(await readFile(setup.tls.certFile, 'utf8'))
+    expect(leaf.checkIP('192.168.0.107')).toBe('192.168.0.107')
   })
 
   it('keeps an explicit address and reports genuinely ambiguous physical LANs', () => {

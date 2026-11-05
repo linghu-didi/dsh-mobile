@@ -192,6 +192,11 @@ function likelyVirtualInterface(name: string): boolean {
     || /^(?:br|wg)\d*\b/u.test(normalized)
 }
 
+/** True when an adapter name belongs to a virtual network a phone cannot dial. */
+export function isVirtualInterfaceName(name: string): boolean {
+  return likelyVirtualInterface(name)
+}
+
 async function runRouteCommand(file: string, args: readonly string[]): Promise<string> {
   const result = await execFile(file, [...args], { encoding: 'utf8', timeout: ROUTE_COMMAND_TIMEOUT_MS })
   return result.stdout
@@ -273,6 +278,28 @@ export function selectLanNetwork(
   const physicalCandidates = candidates.filter(candidate => !likelyVirtualInterface(candidate.name))
   if (physicalCandidates.length === 1) return physicalCandidates[0]!
   throw new Error(`more than one LAN address is active; rerun with --address and one of: ${candidates.map(entry => `${entry.name}=${entry.address}`).join(', ')}`)
+}
+
+/**
+ * Resolve a durable managed setup to a current LAN.
+ *
+ * A saved virtual adapter (Hyper-V `vEthernet`, a VPN or a container bridge)
+ * is not reachable from a phone, so it never pins the gateway: the normal
+ * default-route/physical selection runs instead. An explicit address or an
+ * explicitly requested interface still wins in {@link selectLanNetwork}.
+ *
+ * @param setup - Saved setup whose interface may predate the virtual check.
+ * @param table - Interface table override used by tests and diagnostics.
+ * @param preferredInterfaces - Default-route interfaces in preference order.
+ * @returns The interface the gateway should bind.
+ */
+export function selectManagedLanNetwork(
+  setup: Pick<ManagedSetup, 'networkInterface'>,
+  table?: InterfaceTable,
+  preferredInterfaces: readonly string[] = [],
+): LanNetwork {
+  const saved = setup.networkInterface
+  return selectLanNetwork(undefined, isVirtualInterfaceName(saved) ? undefined : saved, table, preferredInterfaces)
 }
 
 /**
@@ -522,8 +549,9 @@ export async function refreshManagedServerCertificate(setup: ManagedSetup, addre
 export async function materializeManagedSetup(
   setup: ManagedSetup,
   table?: InterfaceTable,
+  preferredInterfaces: readonly string[] = [],
 ): Promise<Record<string, unknown>> {
-  const network = selectLanNetwork(undefined, setup.networkInterface, table)
+  const network = selectManagedLanNetwork(setup, table, preferredInterfaces)
   await refreshManagedServerCertificate(setup, network.address)
   const ca = new X509Certificate(await readFile(setup.tls.caCertFile, 'utf8'))
   return {
