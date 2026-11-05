@@ -26,8 +26,8 @@ const IDENTITY_TIMEOUT_MS = 15_000
 const IDENTITY_METADATA_MAX_BYTES = 8192
 const PAIRING_TIMEOUT_MS = 15_000
 const MAX_LINE_BYTES = 16 * 1024
-/** Gateway pairing windows default to five minutes; the descriptor caps at ten. */
-const MAX_PAIRING_WINDOW_MS = 300_000
+/** The companion offers a ten-minute window; the descriptor and app cap at ten. */
+const MAX_PAIRING_WINDOW_MS = 600_000
 const MIN_PAIRING_WINDOW_MS = 10_000
 
 /** Product-facing states for the experimental iroh transport. */

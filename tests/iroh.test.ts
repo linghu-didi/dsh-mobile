@@ -308,7 +308,7 @@ describe('iroh controller', () => {
     await controller.close()
   })
 
-  it('caps the gateway pairing window at five minutes', async () => {
+  it('caps the gateway pairing window at the ten-minute companion limit', async () => {
     const tlsRoot = await fixtureDir()
     const tlsStateFile = join(tlsRoot, 'remote', 'devices.json')
     const tls = await ensureIrohTls(ENDPOINT, tlsStateFile, tlsRoot)
@@ -340,11 +340,11 @@ describe('iroh controller', () => {
     const child = children[0]
     expect(child).toBeDefined()
     const pairing = controller.beginPairing()
-    // The sidecar offers a ten-minute window; the controller must not ask the
-    // gateway for more than its five-minute pairing budget.
+    // The sidecar offers a ten-minute window; the controller must forward it
+    // instead of clipping it back to the old five-minute budget.
     queueMicrotask(() => child?.stdout.emit('data', Buffer.from(`${JSON.stringify({ version: 1, type: 'pairing', code: '482916', expires_in_sec: 600 })}\n`)))
     await pairing
-    expect(openPairing).toHaveBeenCalledWith(300_000)
+    expect(openPairing).toHaveBeenCalledWith(600_000)
     await controller.close()
   })
 

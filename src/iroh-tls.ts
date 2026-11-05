@@ -206,8 +206,9 @@ export function irohGatewayConfig(
     tls: Object.freeze({ mode: 'provided', certFile: tls.paths.certFile, keyFile: tls.paths.keyFile }),
     publicTls: true,
     discovery: false,
-    // Pairing windows on this channel default to five minutes to match the
-    // controller; the gateway rejects anything above its own ceiling.
-    pairingTtlMs: 300_000,
+    // Pairing windows on this channel use the same generous gateway ceiling as
+    // LAN pairing. The companion sidecar and the installed app still bound the
+    // real window (ten minutes), so this only stops the gateway from rejecting it.
+    pairingTtlMs: 900_000,
   })
 }

@@ -86,8 +86,8 @@ describe('iroh TLS identity', () => {
     expect(config.tls).toMatchObject({ mode: 'provided', certFile: tls.paths.certFile, keyFile: tls.paths.keyFile })
     expect(config.publicTls).toBe(true)
     expect(config.discovery).toBe(false)
-    // The gateway must admit the controller's five-minute pairing windows.
-    expect(config.pairingTtlMs).toBe(300_000)
+    // The gateway must admit the controller's ten-minute pairing windows.
+    expect(config.pairingTtlMs).toBe(900_000)
     const authorities = config.authorities as readonly { hostname: string; port?: number }[]
     expect(authorities).toHaveLength(1)
     expect(`${authorities[0]?.hostname}:${String(authorities[0]?.port)}`).toBe(new URL(`https://${irohHostname(ENDPOINT)}:25443`).host)
