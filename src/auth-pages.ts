@@ -22,6 +22,11 @@ interface AuthPageCopy {
   readonly restoring: string
   readonly noLongerPaired: string
   readonly openPairing: string
+  readonly wechatHeading: string
+  readonly wechatNotice: string
+  readonly wechatCopyLink: string
+  readonly wechatLinkCopied: string
+  readonly wechatLinkFailed: string
 }
 
 const COPY: Record<AuthPageLocale, AuthPageCopy> = {
@@ -39,6 +44,11 @@ const COPY: Record<AuthPageLocale, AuthPageCopy> = {
     reconnectTitle: 'Reconnect DSH mobile access', reconnectHeading: 'Reconnect this device',
     restoring: 'Restoring the secure Session…', noLongerPaired: 'This device is no longer paired. Open pairing on the computer, then pair it again.',
     openPairing: 'Open pairing',
+    wechatHeading: 'Opened inside WeChat',
+    wechatNotice: 'WeChat’s built-in browser can block the pairing request. If Pair does nothing, tap … in the top-right and choose “Open in Browser”, or copy the link below into your system browser.',
+    wechatCopyLink: 'Copy pairing link',
+    wechatLinkCopied: 'Link copied. Open it in your system browser.',
+    wechatLinkFailed: 'Copy failed. Long-press the address bar to copy the link.',
   },
   zh: {
     lang: 'zh-CN', pairTitle: '配对 DSH 移动访问', pairHeading: '配对此设备',
@@ -54,6 +64,11 @@ const COPY: Record<AuthPageLocale, AuthPageCopy> = {
     reconnectTitle: '重新连接 DSH 移动访问', reconnectHeading: '重新连接此设备',
     restoring: '正在恢复安全会话…', noLongerPaired: '此设备已不在配对列表中。请在电脑端打开配对，然后重新配对。',
     openPairing: '打开配对页面',
+    wechatHeading: '正在微信内置浏览器中打开',
+    wechatNotice: '微信可能拦截配对请求。若点击「配对」没有反应，请点右上角「…」并选择「在浏览器打开」，或复制下面的链接到系统浏览器打开。',
+    wechatCopyLink: '复制配对链接',
+    wechatLinkCopied: '链接已复制，请在系统浏览器中打开。',
+    wechatLinkFailed: '复制失败，请长按页面地址手动复制链接。',
   },
   it: {
     lang: 'it-IT', pairTitle: 'Abbina accesso mobile DSH', pairHeading: 'Abbina questo dispositivo',
@@ -69,6 +84,11 @@ const COPY: Record<AuthPageLocale, AuthPageCopy> = {
     reconnectTitle: 'Riconnetti accesso mobile DSH', reconnectHeading: 'Riconnetti questo dispositivo',
     restoring: 'Ripristino della sessione sicura…', noLongerPaired: 'Questo dispositivo non è più abbinato. Apri l’abbinamento sul computer e ripeti la procedura.',
     openPairing: 'Apri abbinamento',
+    wechatHeading: 'Aperto nel browser di WeChat',
+    wechatNotice: 'Il browser integrato di WeChat può bloccare la richiesta di abbinamento. Se «Abbina» non fa nulla, tocca … in alto a destra e scegli «Apri nel browser», oppure copia il link qui sotto nel browser di sistema.',
+    wechatCopyLink: 'Copia link di abbinamento',
+    wechatLinkCopied: 'Link copiato. Aprilo nel browser di sistema.',
+    wechatLinkFailed: 'Copia non riuscita. Tieni premuta la barra degli indirizzi per copiare il link.',
   },
 }
 
@@ -100,9 +120,16 @@ export function renderPairPage(locale: AuthPageLocale): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>input,textarea{font-size:16px}</style>
+<style>.pair-wechat{margin:0 0 1rem;padding:.75rem 1rem;border:1px solid #b45309;border-radius:.5rem;background:#fffbeb;color:#7c2d12}.pair-wechat h2{font-size:1rem;margin:0 0 .25rem}.pair-wechat p{margin:.25rem 0 .5rem}.pair-wechat output{display:block;margin-top:.5rem}</style>
 <title>${copy.pairTitle}</title>
 <main>
   <h1>${copy.pairHeading}</h1>
+  <section id="pair-wechat" class="pair-wechat" aria-labelledby="pair-wechat-heading" hidden>
+    <h2 id="pair-wechat-heading">${copy.wechatHeading}</h2>
+    <p>${copy.wechatNotice}</p>
+    <button type="button" id="pair-wechat-copy">${copy.wechatCopyLink}</button>
+    <output id="pair-wechat-status" aria-live="polite"></output>
+  </section>
   <form id="pair-form">
     <label>${copy.pairingCode} <input id="pair-token" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" aria-describedby="pair-token-hint pair-status" required></label>
     <p id="pair-token-hint">${copy.pairingCodeHint}</p>
@@ -129,6 +156,22 @@ export function renderPairScript(locale: AuthPageLocale): string {
   const fragment = new URLSearchParams(location.hash.slice(1))
   const supplied = fragment.get('token')
   history.replaceState(null, '', location.pathname)
+  const wechatNotice = document.getElementById('pair-wechat')
+  const wechatCopy = document.getElementById('pair-wechat-copy')
+  const wechatStatus = document.getElementById('pair-wechat-status')
+  if (wechatNotice && wechatCopy && typeof navigator !== 'undefined' && /MicroMessenger/iu.test(navigator.userAgent)) {
+    wechatNotice.hidden = false
+    wechatCopy.addEventListener('click', () => {
+      const code = token.value.trim()
+      const link = location.origin + location.pathname + (code === '' ? '' : '#token=' + encodeURIComponent(code))
+      const copy = typeof navigator.clipboard?.writeText === 'function'
+        ? navigator.clipboard.writeText(link)
+        : Promise.reject(new Error('clipboard unavailable'))
+      void copy.then(
+        () => { if (wechatStatus) wechatStatus.value = ${JSON.stringify(copy.wechatLinkCopied)} },
+        () => { if (wechatStatus) wechatStatus.value = ${JSON.stringify(copy.wechatLinkFailed)} })
+    })
+  }
   if (supplied) token.value = supplied
   token.addEventListener('input', () => {
     token.removeAttribute('aria-invalid')
